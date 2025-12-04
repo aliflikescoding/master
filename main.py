@@ -71,7 +71,7 @@ def cancel_all_pending(symbol):
 print("Menunggu setup…")
 
 last_signal_time = None
-MAX_TAIL_MULTIPLIER = 2
+MAX_TAIL_MULTIPLIER = 1.5
 PIP = 0.10          # 1 pip XAUUSD
 BUFFER = 8 * PIP    # 8 pip buffer
 
