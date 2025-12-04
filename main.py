@@ -88,24 +88,33 @@ while True:
     if last_signal_time == D0["time"]:
         continue
 
-    # RULE 1
+        # RULE 1
     if not (D0["body_size"] > D1["body_size"] and D0["body_size"] > D2["body_size"]):
+        print(f"[{D0['time']}] Reject: RULE 1 gagal (D0 body tidak terbesar)")
         continue
 
     # RULE 2
-    if D1["body_size"] > D0["body_size"] * 0.5: continue
-    if D2["body_size"] > D0["body_size"] * 0.5: continue
+    if D1["body_size"] > D0["body_size"] * 0.5:
+        print(f"[{D0['time']}] Reject: RULE 2 gagal (D1 body terlalu besar)")
+        continue
 
-    # RULE 3 tail tidak boleh panjang
+    if D2["body_size"] > D0["body_size"] * 0.5:
+        print(f"[{D0['time']}] Reject: RULE 2 gagal (D2 body terlalu besar)")
+        continue
+
+    # RULE 3: tail tidak boleh panjang
     if (D1["upper_tail"] > D1["body_size"] * MAX_TAIL_MULTIPLIER) or \
        (D1["lower_tail"] > D1["body_size"] * MAX_TAIL_MULTIPLIER):
-        print("Reject: Tail D1 terlalu panjang")
+        print(f"[{D0['time']}] Reject: Tail D1 terlalu panjang "
+              f"(upper={D1['upper_tail']:.2f}, lower={D1['lower_tail']:.2f}, body={D1['body_size']:.2f})")
         continue
 
     if (D2["upper_tail"] > D2["body_size"] * MAX_TAIL_MULTIPLIER) or \
        (D2["lower_tail"] > D2["body_size"] * MAX_TAIL_MULTIPLIER):
-        print("Reject: Tail D2 terlalu panjang")
+        print(f"[{D0['time']}] Reject: Tail D2 terlalu panjang "
+              f"(upper={D2['upper_tail']:.2f}, lower={D2['lower_tail']:.2f}, body={D2['body_size']:.2f})")
         continue
+
 
 
     #   HITUNG SL BARU (RULE SL)
