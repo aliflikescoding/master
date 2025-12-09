@@ -316,5 +316,3 @@ while True:
 
     cancel_all_pending(symbol)
     send_order(order_type, entry, sl, tp)
-
-    time.sleep(1)
