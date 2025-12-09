@@ -188,6 +188,14 @@ def is_signal_buyORsell(D0, D1, D2):
 
 
 # =============================================
+# CLEAR THE HIDDEN LEVEL OBJECT
+# =============================================
+def clear_hidden_levels():
+    count = len(hidden_levels)
+    hidden_levels.clear()
+    print(f"🧹 Cleared {count} hidden SL/TP entries.")
+
+# =============================================
 # MONITOR HIDDEN SL/TP
 # =============================================
 def check_hidden_sl_tp():
@@ -315,4 +323,5 @@ while True:
     print("HIDDEN TP:", tp)
 
     cancel_all_pending(symbol)
+    clear_hidden_levels()
     send_order(order_type, entry, sl, tp)
