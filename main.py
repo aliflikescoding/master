@@ -14,7 +14,7 @@ print("Real-time mode ON")
 
 # 2. FUNCTION: GET LAST 3 CANDLES
 def get_last_3():
-    data = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_M30, 0, 3)
+    data = mt5.copy_rates_from_pos(symbol, mt5.TIMEFRAME_M30, 1, 3)
     if data is None:
         print("MT5 ERROR:", mt5.last_error())
         return None
@@ -34,7 +34,7 @@ def get_last_3():
 
 # 3. SEND ORDER
 def send_order(order_type, entry, sl, tp):
-    volume = 0.02
+    volume = 0.01
 
     request = {
         "action": mt5.TRADE_ACTION_PENDING,
@@ -166,7 +166,7 @@ BUFFER = 8 * PIP    # 8 pip buffer
 
 
 while True:
-    time.sleep(120)
+    sleep_until_next_candle()
 
     df = get_last_3()
     if df is None:
