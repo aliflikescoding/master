@@ -210,6 +210,12 @@ while True:
     D1 = df.iloc[1]
     D0 = df.iloc[2]
 
+    print("\n=== CEK URUTAN CANDLE DARI MT5 ===")
+    print("D0 =", D0)
+    print("D1 =", D1)
+    print("D2 =", D2)
+
+
     # CEK DUPLIKASI SIGNAL
     if last_signal_time == D0["time"]:
         # time protection: ngecek lagi setiap 1 detik selama 30 detik
