@@ -193,7 +193,7 @@ def time_protection(symbol, last_candle_time, max_wait=30):
 print("Menunggu setup…")
 
 last_signal_time = None
-MAX_TAIL_MULTIPLIER = 1.0
+MAX_TAIL_MULTIPLIER = 2.0
 PIP = 0.10          # 1 pip XAUUSD
 BUFFER = 8 * PIP    # 8 pip buffer
 
