@@ -100,19 +100,21 @@ def is_rule2_acc(D0, D1, D2, MAX_TAIL_MULTIPLIER):
 # FUNCTION 5: BUY / SELL LOGI
 def is_signal_buyORsell(D0, D1, D2):
     if D0["close"] > D0["open"]:     # bullish D0 → BUY LIMIT
+        sl_value = min(D1["low"], D2["low"])
         return {
             "signal": "BUY LIMIT",
             "entry": D1["body_top"],
-            "sl": D2["low"],
+            "sl": sl_value,
             "tp": D0["body_top"],
             "order_type": mt5.ORDER_TYPE_BUY_LIMIT
         }
 
     else:                            # bearish D0 → SELL LIMIT
+        sl_value = max(D1["high"], D2["high"])
         return {
             "signal": "SELL LIMIT",
             "entry": D1["body_bottom"],
-            "sl": D2["high"],
+            "sl": sl_value,
             "tp": D0["body_bottom"],
             "order_type": mt5.ORDER_TYPE_SELL_LIMIT
         }
