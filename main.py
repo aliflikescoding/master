@@ -2,6 +2,21 @@ import MetaTrader5 as mt5
 import pandas as pd
 from datetime import datetime
 import time
+import requests
+
+
+# 0. DISCORD WEBHOOK
+DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1448959796421066783/mTVVXtvX6IkiSDRbexRMn6eweUXJ90MXeQshNa0OODE4vYrM4kDCrQU7plg9KJbG6j_c"
+
+def send_discord_message(content: str):
+    """Kirim pesan notifikasi ke Discord."""
+    try:
+        data = {"content": content}
+        r = requests.post(DISCORD_WEBHOOK, json=data, timeout=10)
+        print("Discord Webhook status:", r.status_code)
+    except Exception as e:
+        print("Gagal kirim Discord:", e)
+
 
 # 1. CONNECT MT5
 if not mt5.initialize():
@@ -257,6 +272,17 @@ while True:
         sl = raw_sl + BUFFER
 
     last_signal_time = D0["time"]
+
+    send_discord_message(
+        f"📢 *Setup Terdeteksi*\n"
+        f"Symbol: *{symbol}*\n"
+        f"Type: *{signal}*\n"
+        f"Time: {D0['time']}\n"
+        f"Entry: {entry}\n"
+        f"SL: {sl}\n"
+        f"TP: {tp}"
+    )
+
 
     print("\n=== SETUP TERDETEKSI ===")
     print("Time:", D0["time"])
