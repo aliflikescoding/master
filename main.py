@@ -38,11 +38,12 @@ account_info = mt5.account_info()
 if account_info is None:
     raise Exception("❌ Gagal ambil account info")
 
-if account_info.login != MASTER_LOGIN:
+if int(account_info.login) != int(MASTER_LOGIN):
     raise Exception(
         f"❌ SALAH TERMINAL! TERDETEKSI LOGIN {account_info.login}, "
         f"SEHARUSNYA {MASTER_LOGIN}"
     )
+
 
 print(f"✔ Login MASTER terverifikasi: {account_info.login}")
 print(f"✔ Server: {account_info.server}")
