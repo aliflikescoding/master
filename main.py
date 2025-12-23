@@ -3,6 +3,8 @@ import pandas as pd
 from datetime import datetime
 import time
 import requests
+import threading
+from decimal import Decimal, ROUND_HALF_UP
 
 
 # 0. DISCORD WEBHOOK
@@ -17,15 +19,76 @@ def send_discord_message(content: str):
     except Exception as e:
         print("Gagal kirim Discord:", e)
 
+print("Connecting to MetaTrader 5...")
 
 # 1. CONNECT MT5
 if not mt5.initialize():
-    print("MT5 gagal connect:", mt5.last_error())
+    print("❌ MT5 gagal connect:", mt5.last_error())
+    quit()
+else:
+    print("✔ MT5 berhasil connect\n")
+
+# -------------------------------------------------------
+# CEK STATUS AUTO TRADING
+# -------------------------------------------------------
+terminal_info = mt5.terminal_info()
+
+if terminal_info is None:
+    print("❌ Gagal membaca terminal info:", mt5.last_error())
     quit()
 
+if terminal_info.trade_allowed:
+    print("✔ Auto Trading: ON (hijau)")
+else:
+    print("❌ Auto Trading MATI! (tombol merah) → bot tidak bisa kirim order")
+    quit()
+
+
+# -------------------------------------------------------
+# CEK ACCOUNT INFO
+# -------------------------------------------------------
+account_info = mt5.account_info()
+
+if account_info is None:
+    print("❌ Gagal membaca account info:", mt5.last_error())
+    quit()
+
+print("\n=== ACCOUNT INFO ===")
+print(f"Login     : {account_info.login}")
+print(f"Nama      : {account_info.name}")
+print(f"Server    : {account_info.server}")
+print(f"Leverage  : {account_info.leverage}")
+
+print("\n=== SALDO ===")
+print(f"Balance       : {account_info.balance}")
+print(f"Equity        : {account_info.equity}")
+print(f"Free Margin   : {account_info.margin_free}")
+
+print("\n────────────────────────────────────────────\n")
+
 symbol = "XAUUSD"
+
+SLAVE_WEBHOOK = "http://topfrag746.mtvps.net:11241/webhook"
+
+MASTER_SECRET = "TopFrag?!"
+MAGIC = 86421357
+
 mt5.symbol_select(symbol, True)
 print("Real-time mode ON")
+
+# Storage for hidden SL/TP
+hidden_levels = {}   # {ticket: {sl, tp, order_type}}
+
+# ===============================
+# SLAVE WEBHOOK
+# ===============================
+def send_to_slave(payload):
+    try:
+        payload["secret"] = MASTER_SECRET
+        r = requests.post(SLAVE_WEBHOOK, json=payload, timeout=5)
+        print("➡ Slave:", r.json())
+    except Exception as e:
+        print("❌ Slave error:", e)
 
 # 2. FUNCTION: GET LAST 3 CANDLES
 def get_last_3():
@@ -46,10 +109,24 @@ def get_last_3():
 
     return df
 
+def calculate_volume():
+    account = mt5.account_info()
+    if account is None:
+        raise Exception("Gagal mengambil account info MT5")
+
+    balance = Decimal(str(account.balance))
+    raw_volume = (balance / Decimal("10000")) / Decimal("2")
+    volume = raw_volume.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+    if volume < Decimal("0.01"):
+        volume = Decimal("0.01")
+
+    return float(volume)
+
 
 # 3. SEND ORDER
 def send_order(order_type, entry, sl, tp):
-    volume = 0.01
+    volume = calculate_volume()
 
     request = {
         "action": mt5.TRADE_ACTION_PENDING,
@@ -57,10 +134,8 @@ def send_order(order_type, entry, sl, tp):
         "volume": volume,
         "type": order_type,
         "price": entry,
-        "sl": sl,
-        "tp": tp,
         "deviation": 20,
-        "magic": 20251124,
+        "magic": MAGIC,
         "type_time": mt5.ORDER_TIME_GTC,
         "type_filling": mt5.ORDER_FILLING_RETURN
     }
@@ -68,12 +143,41 @@ def send_order(order_type, entry, sl, tp):
     result = mt5.order_send(request)
     print("Order send result:", result)
 
+    # If order creation successful → store hidden SL/TP
+    if result and result.order > 0:
+        hidden_levels[result.order] = {
+            "sl": sl,
+            "tp": tp,
+            "order_type": order_type
+        }
+        print(f"Hidden SL/TP stored for ticket {result.order}")
+
+        order_type_str = (
+            "BUY_LIMIT"
+            if order_type == mt5.ORDER_TYPE_BUY_LIMIT
+            else "SELL_LIMIT"
+        )
+
+        send_to_slave({
+            "action": "OPEN",
+            "symbol": symbol,
+            "type": order_type_str,
+            "entry": entry,
+            "master_ticket": result.order
+        })
+
+
+    return result
+
 
 def cancel_all_pending(symbol):
     orders = mt5.orders_get(symbol=symbol)
     if orders:
-        print(f"Menghapus {len(orders)} pending order lama...")
+        print(f"Mengecek pending order (filter magic)...")
         for o in orders:
+            if o.magic != MAGIC:
+                continue   # 🔒 PROTEKSI MAGIC
+
             req = {
                 "action": mt5.TRADE_ACTION_REMOVE,
                 "order": o.ticket
@@ -82,6 +186,8 @@ def cancel_all_pending(symbol):
             print(f"Cancel pending #{o.ticket} →", result)
     else:
         print("Tidak ada pending order lama.")
+
+
 
 # FUNCTION 3: CHECK RULE 1 (D0 > D1 & D2
 def is_rule1_acc(D0, D1, D2):
@@ -136,6 +242,124 @@ def is_signal_buyORsell(D0, D1, D2):
             "tp": D0["body_bottom"],
             "order_type": mt5.ORDER_TYPE_SELL_LIMIT
         }
+    
+# =============================================
+# CLEAR THE HIDDEN LEVEL OBJECT
+# =============================================
+def clear_hidden_levels():
+    count = len(hidden_levels)
+    hidden_levels.clear()
+    print(f"🧹 Cleared {count} hidden SL/TP entries.")
+
+# =============================================
+# MONITOR HIDDEN SL/TP
+# =============================================
+def check_hidden_sl_tp():
+    positions = mt5.positions_get(symbol=symbol)
+
+    if positions is None:
+        return
+
+    tick = mt5.symbol_info_tick(symbol)
+    if tick is None:
+        return
+
+    bid = tick.bid
+    ask = tick.ask
+
+    for pos in positions:
+        if pos.magic != MAGIC:
+            continue   # 🔒 PROTEKSI MAGIC
+
+        ticket = pos.ticket
+
+        if ticket not in hidden_levels:
+            continue
+
+        info = hidden_levels[ticket]
+        sl = info["sl"]
+        tp = info["tp"]
+
+        # BUY LIMIT turns into BUY position
+        if pos.type == mt5.ORDER_TYPE_BUY:
+            price = bid
+
+            if price <= sl:
+                print(f"🚨 HIDDEN SL HIT (BUY) → closing ticket {ticket}")
+                mt5.order_send({
+                    "action": mt5.TRADE_ACTION_DEAL,
+                    "symbol": symbol,
+                    "position": ticket,
+                    "type": mt5.ORDER_TYPE_SELL,
+                    "volume": pos.volume
+                })
+                send_to_slave({
+                        "action": "CLOSE",
+                        "master_ticket": pos.ticket
+                    })
+                del hidden_levels[ticket]
+
+            elif price >= tp:
+                print(f"🎯 HIDDEN TP HIT (BUY) → closing ticket {ticket}")
+                mt5.order_send({
+                    "action": mt5.TRADE_ACTION_DEAL,
+                    "symbol": symbol,
+                    "position": ticket,
+                    "type": mt5.ORDER_TYPE_SELL,
+                    "volume": pos.volume
+                })
+                send_to_slave({
+                        "action": "CLOSE",
+                        "master_ticket": pos.ticket
+                    })
+                del hidden_levels[ticket]
+
+        # SELL LIMIT turns into SELL position
+        elif pos.type == mt5.ORDER_TYPE_SELL:
+            price = ask
+
+            if price >= sl:
+                print(f"🚨 HIDDEN SL HIT (SELL) → closing ticket {ticket}")
+                mt5.order_send({
+                    "action": mt5.TRADE_ACTION_DEAL,
+                    "symbol": symbol,
+                    "position": ticket,
+                    "type": mt5.ORDER_TYPE_BUY,
+                    "volume": pos.volume
+                })
+                send_to_slave({
+                        "action": "CLOSE",
+                        "master_ticket": pos.ticket
+                    })
+                
+                del hidden_levels[ticket]
+
+            elif price <= tp:
+                print(f"🎯 HIDDEN TP HIT (SELL) → closing ticket {ticket}")
+                mt5.order_send({
+                    "action": mt5.TRADE_ACTION_DEAL,
+                    "symbol": symbol,
+                    "position": ticket,
+                    "type": mt5.ORDER_TYPE_BUY,
+                    "volume": pos.volume
+                })
+                send_to_slave({
+                        "action": "CLOSE",
+                        "master_ticket": pos.ticket
+                    })
+                
+                del hidden_levels[ticket]
+
+def hidden_sl_tp_loop():
+    print("🔄 Hidden SL/TP monitor thread started")
+    while True:
+        try:
+            check_hidden_sl_tp()
+            time.sleep(0.5)  # aman, tidak DDOS
+        except Exception as e:
+            print("Hidden SL/TP error:", e)
+            time.sleep(1)
+
 
 # FUNCTION 1: TIDUR SAMPAI CANDLE BARU M3
 def sleep_until_next_candle():
@@ -211,6 +435,12 @@ last_signal_time = None
 MAX_TAIL_MULTIPLIER = 2.0
 PIP = 0.10          # 1 pip XAUUSD
 BUFFER = 8 * PIP    # 8 pip buffer
+
+sl_tp_thread = threading.Thread(
+    target=hidden_sl_tp_loop,
+    daemon=True
+)
+sl_tp_thread.start()
 
 
 while True:
@@ -288,8 +518,13 @@ while True:
     print("Time:", D0["time"])
     print("Signal:", signal)
     print("Entry:", entry)
-    print("SL (with wick+8pip):", sl)
-    print("TP:", tp)
+    print("HIDDEN SL:", sl)
+    print("HIDDEN TP:", tp)
 
     cancel_all_pending(symbol)
+    send_to_slave({
+        "action": "CANCEL_PENDING",
+        "symbol": symbol
+    })
+    clear_hidden_levels()
     send_order(order_type, entry, sl, tp)
