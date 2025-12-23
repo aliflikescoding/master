@@ -25,30 +25,27 @@ print("Connecting to MetaTrader 5...")
 if not mt5.initialize():
     print("❌ MT5 gagal connect:", mt5.last_error())
     quit()
+
 print("✔ MT5 berhasil connect\n")
 
 terminal_info = mt5.terminal_info()
-if not terminal_info or not terminal_info.trade_allowed:
-    print("❌ Auto Trading OFF")
+if not terminal_info:
+    print("❌ Gagal ambil terminal info")
     quit()
 
-MASTER_LOGIN = 4115116081
+print("🟢 AutoTrading:", terminal_info.trade_allowed)
+print("📂 Terminal path:", terminal_info.path)
+print("📂 Data path    :", terminal_info.data_path)
 
 account_info = mt5.account_info()
 if account_info is None:
-    raise Exception("❌ Gagal ambil account info")
+    print("❌ Gagal ambil account info")
+    quit()
 
-if int(account_info.login) != int(MASTER_LOGIN):
-    raise Exception(
-        f"❌ SALAH TERMINAL! TERDETEKSI LOGIN {account_info.login}, "
-        f"SEHARUSNYA {MASTER_LOGIN}"
-    )
+print("👤 LOGIN MT5 :", account_info.login, type(account_info.login))
+print("🌐 SERVER   :", account_info.server)
+print("💰 BALANCE  :", account_info.balance)
 
-
-print(f"✔ Login MASTER terverifikasi: {account_info.login}")
-print(f"✔ Server: {account_info.server}")
-
-account_info = mt5.account_info()
 print(f"Login: {account_info.login} | Server: {account_info.server}")
 
 # ==========================================================
