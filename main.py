@@ -72,9 +72,7 @@ symbol = "XAUUSD"
 # MULTIPLE SLAVE SUPPORT
 # ==========================================================
 SLAVE_WEBHOOKS = [
-    "http://topfrag746.mtvps.net:11241/webhook",
-    "http://topfrag746.mtvps.net:11242/webhook",
-    "http://topfrag746.mtvps.net:11243/webhook",
+    "http://http://127.0.0.1:8000/webhook",
 ]
 
 MASTER_SECRET = "TopFrag?!"
