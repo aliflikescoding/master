@@ -20,6 +20,7 @@ def send_discord_message(content: str):
 # ==========================================================
 # MT5 INIT
 # ==========================================================
+
 print("Connecting to MetaTrader 5...")
 if not mt5.initialize():
     print("❌ MT5 gagal connect:", mt5.last_error())
@@ -30,6 +31,21 @@ terminal_info = mt5.terminal_info()
 if not terminal_info or not terminal_info.trade_allowed:
     print("❌ Auto Trading OFF")
     quit()
+
+MASTER_LOGIN = 4115116081
+
+account_info = mt5.account_info()
+if account_info is None:
+    raise Exception("❌ Gagal ambil account info")
+
+if account_info.login != MASTER_LOGIN:
+    raise Exception(
+        f"❌ SALAH TERMINAL! TERDETEKSI LOGIN {account_info.login}, "
+        f"SEHARUSNYA {MASTER_LOGIN}"
+    )
+
+print(f"✔ Login MASTER terverifikasi: {account_info.login}")
+print(f"✔ Server: {account_info.server}")
 
 account_info = mt5.account_info()
 print(f"Login: {account_info.login} | Server: {account_info.server}")
